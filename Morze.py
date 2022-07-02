@@ -1,11 +1,11 @@
 import time
-#import board
-#import digitalio
+import board
+import digitalio
 
-# led = digitalio.DigitalInOut(board.GP5)
-# led.direction = digitalio.Direction.OUTPUT
+led = digitalio.DigitalInOut(board.GP5)
+led.direction = digitalio.Direction.OUTPUT
 
-# Creating a dictionary of letters converted to Morse Code
+# Creating a dictionary of letters
 dict_letters = {
     'a': [True, False, True, True, True, False],
     'b': [True, True, True, False, True, False, True, False, True, False],
@@ -45,7 +45,7 @@ dict_letters = {
     '0': [True, True, True, False, True, True, True, False, True, True, True, False, True, True, True, False, True, True, True, False],
     ' ': [False, False]}  
 
-# To check the spelling
+# Creation a function, which helps to check the spelling
 def spellcheck(message):
     spelling=1
     for i in range (len(message)):
