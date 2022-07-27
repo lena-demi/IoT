@@ -40,11 +40,12 @@ String createMessage(){
    return message;
 }
 
-//Every 15 seconds publish message
+//Every 15 seconds publish messages
 long last = 0;
 void publish_message(String msg) {
   long now = millis();
   if (client.isConnected() && (now - last > PUB_DELAY)) {
+    client.publish("led/single", "turn it on!");
     client.publish("led/morze", msg);
     Serial.println(msg);
     last = now;
