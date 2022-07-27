@@ -46,7 +46,7 @@ void publish_message(String msg) {
   long now = millis();
   if (client.isConnected() && (now - last > PUB_DELAY)) {
     client.publish("led/single", "turn it on!");
-    client.publish("led/morze", msg);
+    client.publish("led/morse", msg);
     Serial.println(msg);
     last = now;
   }

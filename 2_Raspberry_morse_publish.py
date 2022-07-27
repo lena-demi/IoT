@@ -66,7 +66,7 @@ def on_connect(client, userdata, flags, rc):
         isConnected = 1
         client.publish("connect/raspberry", "Raspberry is here! ", 1, retain=True)
         client.subscribe("connect/+")
-        client.subscribe("led/morze")
+        client.subscribe("led/morse")
         client.subscribe("led/single")
 
 # When the client has sent the disconnect message it generates an on_disconnect() callback.
@@ -78,16 +78,16 @@ def on_disconnect(client, userdata, rc):
 # When it gets the message
 def on_message(client, userdata, msg):
     print('\n' + str(msg.topic) + ': ' + str(msg.payload, 'UTF-8'))
-    if str(msg.topic) == 'led/morze':
+    if str(msg.topic) == 'led/morse':
 #Convert message to Morse
         message=[char for char in str(msg.payload, 'UTF-8').lower()]
         spell = spellcheck(message)
         if spell == 1:
             for i in range(len(message)):
-                bukva=dict_letters[message[i]]
-                for j in range(len(bukva)):
-                    print(int(bukva[j]), end='')
-                    # led.value = bukva[j]
+                letter=dict_letters[message[i]]
+                for j in range(len(letter)):
+                    print(int(letter[j]), end='')
+                    # led.value = letter[j]
                     time.sleep(1)
                 print('00', end='')
                 time.sleep(2)
@@ -97,6 +97,7 @@ def on_message(client, userdata, msg):
         print('1')
         #led.value = True
         time.sleep(1)
+	#led.value = False
 
 isConnected = 0
 client = mqtt.Client(client_id="mqtt-lenademi52732-0ydm4w")
