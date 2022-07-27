@@ -5,7 +5,7 @@
 #define PUB_DELAY (15 * 1000) /* 15 seconds */
 // Create wifi connection  and initialize mqtt client
 EspMQTTClient client(
-  "<wifi>",
+  "< wifi >",
   "<wifi-password>",
 
   "dev.rightech.io",
