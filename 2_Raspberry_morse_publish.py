@@ -97,6 +97,7 @@ def on_message(client, userdata, msg):
         print('1')
         #led.value = True
         time.sleep(1)
+	print('0')
 	#led.value = False
 
 isConnected = 0
