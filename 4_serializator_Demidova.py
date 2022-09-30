@@ -3,8 +3,8 @@
 import tkinter as tk 
 
 transaction_num = 0
-protocol_id = "00000000"
-unit_id = "0001"
+protocol_id = "0000"
+unit_id = "01"
 moist = None
 water_level = None
 text_1 = "AI0: moisture = {} %\n"
@@ -14,12 +14,12 @@ text_3 = "Serialized Modbus TCP message for reading analog inputs AI0 and AI1:\n
 # Writing Modbus TCP package:
 def serializer(moist, water_level):    
     global transaction_num
-    transaction_id = "{:08b}".format(transaction_num)
-    total_length = "{:08b}".format(7)
-    functional_code = "{:04b}".format(3)
-    msg_length = "{:04b}".format(4)
-    AI0 = "{:08b}".format(moist)
-    AI1 = "{:08b}".format(water_level)
+    transaction_id = "{:04X}".format(transaction_num)
+    total_length = "{:04X}".format(7)
+    functional_code = "{:02X}".format(4)
+    msg_length = "{:02X}".format(4)
+    AI0 = "{:04X}".format(moist)
+    AI1 = "{:04X}".format(water_level)
     serialized_msg = transaction_id + protocol_id + total_length + unit_id + functional_code + msg_length + AI0 + AI1
     transaction_num+=1
     return serialized_msg
@@ -36,16 +36,16 @@ def clicked():
     try:
         moist = int(input_1)
         if (moist < 0) or (moist > 100):
-            moist = 255
+            moist = 65535
     except:
-            moist = 255
+            moist = 65535
 # Water level:
     try:
         water_level = int(input_2)
         if (water_level < 0) or (water_level > 100):
-            water_level = 255
+            water_level = 65535
     except:
-        water_level = 255
+        water_level = 65535
 # Serialize        
     result = serializer(moist, water_level)  
     text_1 = "AI0: moisture = " + str(moist) + " %\n"
@@ -80,7 +80,7 @@ lbl_water_lvl.pack(side=tk.LEFT)
 AI1 = tk.Entry(input_frame, width=20)
 AI1.grid(column=1, row=1)
 
-attention = tk.Label (window, text="In case of invalid input data the value of 255 will be used", font=("Times New Roman", 11), justify=tk.LEFT,  anchor="w")
+attention = tk.Label (window, text="In case of invalid input data the value of 65535 will be used", font=("Times New Roman", 11), justify=tk.LEFT,  anchor="w")
 attention.pack(anchor="w", pady=5)
 
 btn_frame = tk.Frame()
