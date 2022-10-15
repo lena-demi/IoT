@@ -1,11 +1,12 @@
 import paho.mqtt.client as mqtt # mqtt paho
 import json # json converter
 
-class Bus(ID=456, N=1):
-    def __init__(self, ID, mqtt_client, N):
+class Bus():
+    def __init__(self, mqtt_client, ID = 456, N = 1):
         # Конфигурационные параметры (не отправляются по mqtt)
         self.ID = ID # ID совпадает с ID в Rightech IoT Cloud
         self.N  = N
+        self.motor_time = 0 # время работы/простоя мотора, [мин]
         
         # Параметры, отправляемые по mqtt
         self.T_bus = 20
@@ -14,7 +15,7 @@ class Bus(ID=456, N=1):
         self.people = 0 # ЕИ = [%]
         self.GPS = {"lon": 0, "lat": 0} # ЛЕНА поставь сюда координаты автопарка :)
         self.velocity = 0
-        self.light = 0
+        self.light = 55000
         self.light_status = False
         self.motor = True
         

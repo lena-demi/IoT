@@ -3,9 +3,9 @@ import json # json converter
 from datetime import datetime, timedelta # for date
 
 # Модель автобусной остановки
-class Stop(ID=123, alarm=15, name="Тестовая остановка", bus = []):
+class Stop():
     # Инициализация объекта
-    def __init__(self, ID, mqtt_client, alarm, name, bus):
+    def __init__(self, mqtt_client, ID = 123, alarm = 15, name = "Тестовая остановка", bus = [1]):
         
         # Конфигурационные параметры (не отправляются по mqtt)
         self.ID = ID # ID совпадает с ID в Rightech IoT Cloud
