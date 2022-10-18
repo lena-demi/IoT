@@ -1,14 +1,16 @@
-import paho.mqtt.client as mqtt # mqtt paho
-import json # json converter
-from datetime import datetime, timedelta # for date
+import paho.mqtt.client as mqtt
+import json
+from datetime import datetime, timedelta
+import time
+
+import emulators
 
 # Модель автобусной остановки
 class Stop():
     # Инициализация объекта
-    def __init__(self, mqtt_client, ID = 123, alarm = 15, name = "Тестовая остановка", bus = [1]):
+    def __init__(self, mqtt_client, alarm = 15, name = "Тестовая остановка", bus = [1]):
         
         # Конфигурационные параметры (не отправляются по mqtt)
-        self.ID = ID # ID совпадает с ID в Rightech IoT Cloud
         self.name = name
         self.bus = bus
         self.deadline = None # Для блокировки кнопки тревоги на время реагирования
@@ -85,3 +87,42 @@ class Stop():
         data["display"] = str(self.display)
         data = json.dumps(data)
         self.mqtt_client.publish(self.topic_info, data, retain=True)
+        
+# init mqtt
+def init(clientid, clientUsername="", clientPassword=""):
+    client = mqtt.Client(client_id=clientid)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.username_pw_set(username = clientUsername, password = clientPassword)
+    return client
+
+# connect reaction
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        isConnect = 1
+        client.publish("connect", "true", 1)
+    if rc == 5:
+        print("Authorization error")
+
+# default message reaction
+def on_message(client, userdata, message):
+     print("Some message received topic: %s, payload: %s" % (str(message.topic), str(message.payload)))
+
+# mqtt connection
+def run(client, host="dev.rightech.io", port=1883):
+    client.connect(host, port, 60)
+    client.loop_start()
+    
+mqtt_client = init("mqtt-lenademi52732-w9110v", clientUsername='123', clientPassword='123')
+run(mqtt_client)
+stop = Stop(mqtt_client)
+dt = 2
+light_time = 480
+while True:
+    if stop.alarm == True and datetime.now() >= stop.deadline:
+        stop.alarm = False
+    stop.light = emulators.light_vary(light_time)
+    stop.T = emulators.T_vary()
+    stop.publish_data()
+    light_time = light_time + dt
+    time.sleep(dt)

@@ -1,21 +1,23 @@
-import paho.mqtt.client as mqtt # mqtt paho
-import json # json converter
+import paho.mqtt.client as mqtt
+import json
+import emulators
+import time
 
 class Bus():
-    def __init__(self, mqtt_client, ID = 456, N = 1):
+    def __init__(self, mqtt_client, N = 1):
         # Конфигурационные параметры (не отправляются по mqtt)
-        self.ID = ID # ID совпадает с ID в Rightech IoT Cloud
         self.N  = N
-        self.motor_time = 0 # время работы/простоя мотора, [мин]
+        self.t_move = 0 # время на маршруте [мин]
+        self.j = 0 # индекс актуальной координаты из массива координат
         
         # Параметры, отправляемые по mqtt
         self.T_bus = 20
         self.T_motor = 20
         self.climat_control = 0 # 0 - выключено, 1 - обогрев, -1 - охлаждение
         self.people = 0 # ЕИ = [%]
-        self.GPS = {"lon": 0, "lat": 0} # ЛЕНА поставь сюда координаты автопарка :)
+        self.GPS = {"lat": 59.8461945595122, "lon": 30.1764661073685} # ЛЕНА поставь сюда координаты автопарка :)
         self.velocity = 0
-        self.light = 55000
+        self.light = 110000 # [light]=[лк] = люкс 110000 - ясный день
         self.light_status = False
         self.motor = True
         
@@ -88,11 +90,50 @@ class Bus():
         data["T_motor"] = str(self.T_motor)
         data["climat_control"] = str(self.climat_control)
         data["people"] = str(self.people)
-        data["lon"] = str(self.GPS["lon"])
         data["lat"] = str(self.GPS["lat"])
+        data["lon"] = str(self.GPS["lon"])
         data["velocity"] = str(self.velocity)
         data["light"] = str(self.light)
         data["light_status"] = str(self.light_status)
         data["motor"] = str(self.motor)
         data = json.dumps(data)
         self.mqtt_client.publish(self.topic_info, data, retain=True)
+        
+# init mqtt
+def init(clientid, clientUsername="", clientPassword=""):
+    client = mqtt.Client(client_id=clientid)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.username_pw_set(username = clientUsername, password = clientPassword)
+    return client
+
+# connect reaction
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        isConnect = 1
+        client.publish("connect", "true", 1)
+    if rc == 5:
+        print("Authorization error")
+
+# default message reaction
+def on_message(client, userdata, message):
+     print("Some message received topic: %s, payload: %s" % (str(message.topic), str(message.payload)))
+
+# mqtt connection
+def run(client, host="dev.rightech.io", port=1883):
+    client.connect(host, port, 60)
+    client.loop_start()
+    
+mqtt_client = init("mqtt-lenademi52732-l4qj1i", clientUsername='123', clientPassword='123')
+run(mqtt_client)
+bus = Bus(mqtt_client)
+dt = 2
+light_time = 480 # Время для определения освещенности: при 480 освещенность соответствует освещенности в 8 утра
+while True:
+    bus.light = emulators.light_vary(light_time)
+    bus.T_bus = emulators.temp_bus(bus.T_bus, bus.climat_control)
+    bus.T_motor = emulators.temp_motor(dt, bus.T_motor, bus.motor)
+    emulators.motion(dt, bus)
+    bus.publish_data()
+    light_time = light_time + dt
+    time.sleep(dt)
