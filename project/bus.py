@@ -1,7 +1,8 @@
 import paho.mqtt.client as mqtt
 import json
-import emulators
 import time
+import math
+import random
 
 class Bus():
     def __init__(self, mqtt_client, N = 1):
@@ -15,7 +16,7 @@ class Bus():
         self.T_motor = 20
         self.climat_control = 0 # 0 - выключено, 1 - обогрев, -1 - охлаждение
         self.people = 0 # ЕИ = [%]
-        self.GPS = {"lat": 59.8461945595122, "lon": 30.1764661073685} # ЛЕНА поставь сюда координаты автопарка :)
+        self.GPS = {"lat": 59.8461945595122, "lon": 30.1764661073685}
         self.velocity = 0
         self.light = 110000 # [light]=[лк] = люкс 110000 - ясный день
         self.light_status = False
@@ -54,8 +55,11 @@ class Bus():
         self.publish_data()
         
     def motor_callback(self, client, userdata, message):
-        print("Выключение мотора")
-        self.motor = False
+        print("Выключение/Включение мотора")
+        if self.motor == False:
+            self.motor = True
+        else:
+            self.motor = False
         self.publish_data()
         
     def heat_callback(self, client, userdata, message):
@@ -99,6 +103,71 @@ class Bus():
         data = json.dumps(data)
         self.mqtt_client.publish(self.topic_info, data, retain=True)
         
+# Изменение освещенности
+def light_vary(t):
+    light = round(55000*math.cos((2*math.pi/1440)*t-math.pi)+55000)
+    return light
+
+# Изменение температуры под капотом автобуса
+def temp_motor(dt, temp, motor):
+    if motor == True:
+        T = temp + dt/2
+    else:
+        T = temp - dt/2
+    return (T)
+
+# Изменение температуры в салоне автобуса
+def temp_bus(temp, climat_control):
+    if climat_control == 0:
+        T = round(temp + random.uniform(-0.5,0.5), 2)
+    elif climat_control == 1:
+        T = temp + 1
+    else:
+        T = temp - 1
+    return (T)
+
+# Получить координаты маршрута на основе JSON выгруженного из Rightech:
+# Маршрут пройден ботом со скоростью 60 км/ч
+def track(path="./track.json"):
+    f = open(path, 'r')
+    file = f.read()
+    track = json.loads(file)
+    f.close()
+    lat = []
+    lon = []
+    for i in range (len(track)):
+        data = track[i]
+        if data["topic"] =="lat":
+            lat.append(data["lat"])
+        elif data["topic"] =="lon":
+            lon.append(data["lon"])
+    lat.pop(834)
+    return(lat, lon)
+
+# Эмулятор движения автобуса
+def motion(dt, bus, path_to_track_file = "./track.json"):
+    track_lat, track_lon = track(path_to_track_file)
+    bus.t_move = bus.t_move  + dt
+    t = bus.t_move
+    if bus.motor == True:
+        bus.velocity =round((30*math.cos((2*math.pi/120)*t-math.pi)+30), 2)
+        if bus.velocity < 2:
+            bus.people = random.randint(0, 100)
+        else:
+            dj = int((bus.velocity/60)*dt)
+            i = bus.j+dj
+            bus.j = i
+            bus.GPS["lat"] = track_lat[i]
+            bus.GPS["lon"] = track_lon[i]
+            if bus.GPS["lat"] == 59.8461945595122 and bus.GPS["lon"] == 30.1764661073685 and bus.t_move > 60:
+                bus.t_move = 0
+    else:
+        bus.velocity = 0
+    print("velocity: ", bus.velocity)
+    print("i: ", bus.j)
+    print("GPS: ", bus.GPS["lon"], bus.GPS["lat"])
+    return (bus)
+
 # init mqtt
 def init(clientid, clientUsername="", clientPassword=""):
     client = mqtt.Client(client_id=clientid)
@@ -130,10 +199,10 @@ bus = Bus(mqtt_client)
 dt = 2
 light_time = 480 # Время для определения освещенности: при 480 освещенность соответствует освещенности в 8 утра
 while True:
-    bus.light = emulators.light_vary(light_time)
-    bus.T_bus = emulators.temp_bus(bus.T_bus, bus.climat_control)
-    bus.T_motor = emulators.temp_motor(dt, bus.T_motor, bus.motor)
-    emulators.motion(dt, bus)
+    bus.light =light_vary(light_time)
+    bus.T_bus = temp_bus(bus.T_bus, bus.climat_control)
+    bus.T_motor = temp_motor(dt, bus.T_motor, bus.motor)
+    bus = motion(dt, bus)
     bus.publish_data()
     light_time = light_time + dt
     time.sleep(dt)

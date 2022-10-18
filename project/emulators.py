@@ -1,7 +1,7 @@
 import json
 import math
 import random
-import bus # ЛЕНА, попробуй убрать этот модуль и посмотреть, будет ли работать итоговый код?
+#import bus # ЛЕНА, попробуй убрать этот модуль и посмотреть, будет ли работать итоговый код?
 import paho.mqtt.client as mqtt # mqtt paho
 
 # Изменение температуры на улице
