@@ -18,15 +18,16 @@ class Bus():
         self.people = 0 # ЕИ = [%]
         self.GPS = {"lat": 59.8461945595122, "lon": 30.1764661073685}
         self.velocity = 0
-        self.light = 110000 # [light]=[лк] = люкс 110000 - ясный день
+        self.light = 5000 # [light]=[лк] = люкс 5000 лк - дневной свет
         self.light_status = False
         self.motor = True
         
         # Топики и callbacks для MQTT
         self.mqtt_client = mqtt_client
         self.topic_info = "bus/info"
-        self.topic_light = "stop/light"
-        self.topic_motor = "bus/block"
+        self.topic_light = "bus/light"
+        self.topic_motor_off = "bus/block"
+        self.topic_motor_on = "bus/run"
         self.topic_heat = "bus/climat-control/heat"
         self.topic_cool = "bus/climat-control/cool"
         self.topic_climat = "bus/climat-control/off"
@@ -34,8 +35,10 @@ class Bus():
         
         self.mqtt_client.subscribe(self.topic_light)
         self.mqtt_client.message_callback_add(self.topic_light, self.light_callback)
-        self.mqtt_client.subscribe(self.topic_motor)
-        self.mqtt_client.message_callback_add(self.topic_motor, self.motor_callback)
+        self.mqtt_client.subscribe(self.topic_motor_off)
+        self.mqtt_client.message_callback_add(self.topic_motor_off, self.motor_off_callback)
+        self.mqtt_client.subscribe(self.topic_motor_on)
+        self.mqtt_client.message_callback_add(self.topic_motor_on, self.motor_on_callback)
         self.mqtt_client.subscribe(self.topic_heat)
         self.mqtt_client.message_callback_add(self.topic_heat, self.heat_callback)
         self.mqtt_client.subscribe(self.topic_cool)
@@ -47,33 +50,35 @@ class Bus():
         
     # Callbacks
     def light_callback(self, client, userdata, message):
-        print("Ручное включение/выключение освещения")
+        print("Включение/выключение освещения")
         if self.light_status == True:
             self.light_status = False
         else:
             self.light_status = True
         self.publish_data()
         
-    def motor_callback(self, client, userdata, message):
-        print("Выключение/Включение мотора")
-        if self.motor == False:
-            self.motor = True
-        else:
-            self.motor = False
+    def motor_off_callback(self, client, userdata, message):
+        print("Блокировка мотора")
+        self.motor = False
         self.publish_data()
         
+    def motor_on_callback(self, client, userdata, message):
+        print("Разблокировка мотора")
+        self.motor = True
+        self.publish_data()
+    
     def heat_callback(self, client, userdata, message):
-        print("Ручное включение обогрева")
+        print("Включение обогрева")
         self.climat_control = 1
         self.publish_data()
         
     def cool_callback(self, client, userdata, message):
-        print("Ручное включение охлаждения")
+        print("Включение охлаждения")
         self.climat_control = -1
         self.publish_data()
         
     def climat_callback(self, client, userdata, message):
-         print("Ручное выключение нагрева и охлаждения")
+         print("Выключение нагрева и охлаждения")
          self.climat_control = 0
          self.publish_data()
          
@@ -82,11 +87,11 @@ class Bus():
             people = int(message.payload)
             if people >= 0 and people <= 100:
                 self.people = people
-                print("Ручное изменение заполненности автобуса. Автобус заполнен на %s %" % str(message.payload))
+                print("Ручное изменение заполненности автобуса. Автобус заполнен на %s" % str(message.payload))
         except:
-            print("Невозможно изменитть заполненность автобуса на %s %" % str(message.payload))
+            print("Невозможно изменитть заполненность автобуса на %s" % str(message.payload))
         self.publish_data()
-        
+    
     # Publish info via mqtt
     def publish_data(self):     
         data = {}
@@ -100,20 +105,24 @@ class Bus():
         data["light"] = str(self.light)
         data["light_status"] = str(self.light_status)
         data["motor"] = str(self.motor)
+        data["N"] = str(self.N)
         data = json.dumps(data)
         self.mqtt_client.publish(self.topic_info, data, retain=True)
         
 # Изменение освещенности
 def light_vary(t):
-    light = round(55000*math.cos((2*math.pi/1440)*t-math.pi)+55000)
+    light = round(2500*math.cos((2*math.pi/1440)*t-math.pi)+2500)
     return light
 
 # Изменение температуры под капотом автобуса
 def temp_motor(dt, temp, motor):
     if motor == True:
-        T = temp + dt/2
+        T = temp + dt/4
     else:
-        T = temp - dt/2
+        if temp > 20:
+            T = temp - dt*2
+        else:
+            T = temp
     return (T)
 
 # Изменение температуры в салоне автобуса
@@ -147,13 +156,14 @@ def track(path="./track.json"):
 # Эмулятор движения автобуса
 def motion(dt, bus, path_to_track_file = "./track.json"):
     track_lat, track_lon = track(path_to_track_file)
-    bus.t_move = bus.t_move  + dt
-    t = bus.t_move
     if bus.motor == True:
-        bus.velocity =round((30*math.cos((2*math.pi/120)*t-math.pi)+30), 2)
-        if bus.velocity < 2:
+        bus.t_move = bus.t_move  + dt
+        t = bus.t_move
+        bus.velocity =round((30*math.cos((2*math.pi/240)*t-math.pi)+30), 2)
+        if bus.velocity < 0.5:
             bus.people = random.randint(0, 100)
         else:
+            
             dj = int((bus.velocity/60)*dt)
             i = bus.j+dj
             bus.j = i
@@ -161,11 +171,9 @@ def motion(dt, bus, path_to_track_file = "./track.json"):
             bus.GPS["lon"] = track_lon[i]
             if bus.GPS["lat"] == 59.8461945595122 and bus.GPS["lon"] == 30.1764661073685 and bus.t_move > 60:
                 bus.t_move = 0
+                bus.j = 0
     else:
         bus.velocity = 0
-    print("velocity: ", bus.velocity)
-    print("i: ", bus.j)
-    print("GPS: ", bus.GPS["lon"], bus.GPS["lat"])
     return (bus)
 
 # init mqtt
@@ -193,7 +201,7 @@ def run(client, host="dev.rightech.io", port=1883):
     client.connect(host, port, 60)
     client.loop_start()
     
-mqtt_client = init("mqtt-lenademi52732-l4qj1i", clientUsername='123', clientPassword='123')
+mqtt_client = init("mqtt-lenademi52732-fecf7e", clientUsername='', clientPassword='')
 run(mqtt_client)
 bus = Bus(mqtt_client)
 dt = 2

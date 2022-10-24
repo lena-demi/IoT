@@ -1,9 +1,10 @@
+# -*- coding: utf-8 -*-
 import paho.mqtt.client as mqtt
 import json
 from datetime import datetime, timedelta
 import time
-
-import emulators
+import random
+import math
 
 # Модель автобусной остановки
 class Stop():
@@ -17,7 +18,7 @@ class Stop():
         
         # Параметры, отправляемые по mqtt
         self.T = 20 # [T]=[С]
-        self.light = 110000 # [light]=[лк] = люкс 110000 - ясный день
+        self.light = 5000 # [light]=[лк] = люкс 5000 - дневной свет
         self.light_status = False
         self.alarm = False
         self.alarm_duration = alarm # [t]=[мин]
@@ -42,7 +43,7 @@ class Stop():
         self.mqtt_client.subscribe(self.topic_bus)
         self.mqtt_client.message_callback_add(self.topic_bus, self.bus_callback)
         
-    # Callbacks  ЛЕНА проверь, что  будет, если опустить часть аргументов? Я же их не использую
+    # Callbacks
     def light_callback(self, client, userdata, message):
         print("Ручное включение/выключение освещения" )
         if self.light_status == True:
@@ -62,32 +63,40 @@ class Stop():
     def set_alarm_callback(self, client, userdata, message):
         print("Новое время реагирования на кнопку тревоги = %s минут" % str(message.payload))
         try:
-            self.alarm_duration = int(message.payload)
+            if int(message.payload) >= 0:
+                self.alarm_duration = int(message.payload)
+            else: print("Невозможно установить время реагирования: %s" % str(message.payload))
         except:
-            print("can't change duration to %s" % str(message.payload))
+            print("Невозможно установить время реагирования: %s" % str(message.payload))
         self.publish_data()
         
     def bus_callback(self, client, userdata, message):
-        msg = json.loads(message.payload)
-        N = str(msg["N"])
-        people = str(msg["people"])
-        time = str(msg["time"])
-        self.display = format("Автобус № %s будет %s, заполнен на %s %" % (N, time, people))
-        self.publish_data()
+        msg = message.payload
+        self.display = msg.decode("utf-8", errors="replace")
         print(self.display)
     
     # Publish info via mqtt
     def publish_data(self):
         data = {}
+        data["name"] = str(self.name)
         data["temperature"] = str(self.T)
         data["light"] = str(self.light)
         data["light_status"] = str(self.light_status)
         data["alarm"] = str(self.alarm)
         data["alarm_duration"] = str(self.alarm_duration)
-        data["display"] = str(self.display)
         data = json.dumps(data)
         self.mqtt_client.publish(self.topic_info, data, retain=True)
         
+# Изменение температуры на улице
+def T_vary():
+    T = random.randint(0,30)
+    return T
+
+# Изменение освещенности
+def light_vary(t):
+    light = round(2500*math.cos((2*math.pi/1440)*t-math.pi)+2500)
+    return light
+
 # init mqtt
 def init(clientid, clientUsername="", clientPassword=""):
     client = mqtt.Client(client_id=clientid)
@@ -113,16 +122,16 @@ def run(client, host="dev.rightech.io", port=1883):
     client.connect(host, port, 60)
     client.loop_start()
     
-mqtt_client = init("mqtt-lenademi52732-w9110v", clientUsername='123', clientPassword='123')
+mqtt_client = init("mqtt-lenademi52732-w9110v", clientUsername='', clientPassword='')
 run(mqtt_client)
-stop = Stop(mqtt_client)
+stop = Stop(mqtt_client, name="Улица Лёни Голикова")
 dt = 2
 light_time = 480
 while True:
     if stop.alarm == True and datetime.now() >= stop.deadline:
         stop.alarm = False
-    stop.light = emulators.light_vary(light_time)
-    stop.T = emulators.T_vary()
+    stop.light = light_vary(light_time)
+    stop.T = T_vary()
     stop.publish_data()
     light_time = light_time + dt
     time.sleep(dt)
